@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Películas Vistas</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Películas Vistas</h1>
+    <div style="float:right">
+      <button id="logoutBtn" style="display:none">Logout</button>
+    </div>
+    
+    <div id="alert"></div>
+
+    <h2>Agregar Película</h2>
+    <div class="form-group">
+      <label>Nombre de la película:</label>
+      <input type="text" id="titulo" placeholder="Ej: Inception">
+    </div>
+    <div class="form-group">
+      <label>Calificación (1-10):</label>
+      <input type="number" id="calificacion" min="1" max="10" placeholder="Ej: 8">
+    </div>
+    <div class="form-group">
+      <label>Comentarios:</label>
+      <textarea id="comentarios" placeholder="Ej: Excelente película, muy recomendada"></textarea>
+    </div>
+    <button onclick="crearPelicula()">Agregar Película</button>
+
+    <h2 style="margin-top: 30px;">Mis Películas</h2>
+    <div id="películas"></div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:3000';
+
+    // REQUIERE LOGIN: si no hay token en localStorage redirige a login
+    (function(){
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          window.location.href = 'login.html';
+        }
+      } catch (e) {
+        // en caso de error de acceso a localStorage, redirigir por seguridad
+        window.location.href = 'login.html';
+      }
+    })();
+
+    // Manejo de sesión cliente: token en localStorage
+    function getToken(){ return localStorage.getItem('token'); }
+    function setToken(t){ if(t) localStorage.setItem('token', t); else localStorage.removeItem('token'); }
+    function updateAuthUI(){
+      const token = getToken();
+      const lb = document.getElementById('logoutBtn');
+      lb.style.display = token ? '' : 'none';
+      lb.onclick = () => { setToken(null); window.location.href = 'login.html'; };
+    }
+    updateAuthUI();
+
+    function mostrarAlerta(mensaje, tipo) {
+      const alert = document.getElementById('alert');
+      alert.innerHTML = `<div class="alert alert-${tipo}">${mensaje}</div>`;
+      setTimeout(() => { alert.innerHTML = ''; }, 3000);
+    }
+
+    async function cargarPelículas() {
+      try {
+        const response = await fetch(`${API_URL}/peliculas`);
+        const peliculas = await response.json();
+        
+        const peliculasDiv = document.getElementById('películas');
+        if (peliculas.length === 0) {
+          peliculasDiv.innerHTML = '<div class="empty">No hay películas agregadas</div>';
+          return;
+        }
+
+        peliculasDiv.innerHTML = peliculas.map(p => `
+          <div class="pelicula">
+            <h3>${p.titulo}</h3>
+            <p class="calificacion"><strong>Calificación:</strong> ${p.calificacion}/10</p>
+            <p class="comentarios">${p.comentarios}</p>
+            <small>Agregado: ${new Date(p.createdAt).toLocaleString()}</small>
+            <div class="pelicula-buttons">
+              <button onclick="editarPelicula('${p.id}')">Editar</button>
+              <button class="btn-delete" onclick="eliminarPelicula('${p.id}')">Eliminar</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (error) {
+        mostrarAlerta('Error: ' + error.message, 'error');
+      }
+    }
+
+    async function crearPelicula() {
+      const titulo = document.getElementById('titulo').value.trim();
+      const calificacion = parseInt(document.getElementById('calificacion').value);
+      const comentarios = document.getElementById('comentarios').value.trim();
+
+      if (!titulo || !calificacion || !comentarios) {
+        mostrarAlerta('Completa todos los campos', 'error');
+        return;
+      }
+
+      if (calificacion < 1 || calificacion > 10) {
+        mostrarAlerta('Calificación debe estar entre 1 y 10', 'error');
+        return;
+      }
+
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        const token = getToken();
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const response = await fetch(`${API_URL}/peliculas`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ titulo, calificacion, comentarios })
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error);
+        }
+
+        mostrarAlerta('Película agregada', 'success');
+        document.getElementById('titulo').value = '';
+        document.getElementById('calificacion').value = '';
+        document.getElementById('comentarios').value = '';
+        cargarPelículas();
+      } catch (error) {
+        mostrarAlerta('Error: ' + error.message, 'error');
+      }
+    }
+
+    async function editarPelicula(id) {
+      const titulo = prompt('Nuevo nombre:');
+      if (!titulo) return;
+      const calificacion = parseInt(prompt('Nueva calificación (1-10):'));
+      if (!calificacion || calificacion < 1 || calificacion > 10) return;
+      const comentarios = prompt('Nuevos comentarios:');
+      if (!comentarios) return;
+
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        const token = getToken(); if (token) headers['Authorization'] = 'Bearer ' + token;
+        const response = await fetch(`${API_URL}/peliculas/${id}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ titulo, calificacion, comentarios })
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error);
+        }
+
+        mostrarAlerta('Película actualizada', 'success');
+        cargarPelículas();
+      } catch (error) {
+        mostrarAlerta('Error: ' + error.message, 'error');
+      }
+    }
+
+    async function eliminarPelicula(id) {
+      if (!confirm('Eliminar película?')) return;
+
+      try {
+        const headers = {};
+        const token = getToken(); if (token) headers['Authorization'] = 'Bearer ' + token;
+        const response = await fetch(`${API_URL}/peliculas/${id}`, {
+          method: 'DELETE',
+          headers
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error);
+        }
+
+        mostrarAlerta('Película eliminada', 'success');
+        cargarPelículas();
+      } catch (error) {
+        mostrarAlerta('Error: ' + error.message, 'error');
+      }
+    }
+
+    cargarPelículas();
+  </script>
+</body>
+</html>

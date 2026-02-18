@@ -1,0 +1,14 @@
+[
+  {
+    "id": "1771454132633",
+    "username": "Usuario 1",
+    "passwordHash": "$2b$10$IuHbGAmFrgHRLBDKH2ZveOHrhLg3As8nzGc7poaUWdQDNiPuUZU76",
+    "createdAt": "2026-02-18T22:35:32.634Z"
+  },
+  {
+    "id": "1771455358006",
+    "username": "Usuario 2",
+    "passwordHash": "$2b$10$MsYZx28I9rU9ASk6F.py.eEmrBbB8UN.IQIuaHyrVxzJAen6E1KAu",
+    "createdAt": "2026-02-18T22:55:58.006Z"
+  }
+]
