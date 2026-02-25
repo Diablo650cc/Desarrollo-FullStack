@@ -14,13 +14,13 @@ app.use(express.urlencoded({ extended: true }));
 // Directorio público para archivos estáticos (login HTML, etc.)
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Rutas
-app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);
+// Rutas API desactivadas - MongoDB no está conectado
+// app.use('/api/auth', authRoutes);
+// app.use('/api/products', productRoutes);
 
 // Ruta de prueba
 app.get('/', (req, res) => {
-    res.json({ message: 'API MotoGear funcionando' });
+    res.sendFile(require('path').join(__dirname, '../public/login.html'));
 });
 
 // Health Check

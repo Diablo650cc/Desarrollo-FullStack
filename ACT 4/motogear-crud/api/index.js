@@ -1,8 +1,6 @@
 require('dotenv').config();
-const connectDB = require('../src/config/database');
 const app = require('../src/app');
 
-// Conectar a MongoDB
-connectDB();
+// MongoDB desactivado - solo serviendo archivos estáticos
 
 module.exports = app;
