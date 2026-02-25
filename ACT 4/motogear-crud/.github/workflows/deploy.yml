@@ -1,0 +1,79 @@
+name: Test & Deploy
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [16.x, 18.x]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Usar Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Instalar dependencias
+      run: npm install
+    
+    - name: Ejecutar linter (si existe)
+      run: npm run lint --if-present
+    
+    - name: Ejecutar tests
+      run: npm test -- --coverage --watchAll=false
+    
+    - name: Subir cobertura a Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Deploying a Vercel app
+      uses: amondnet/vercel-action@v25
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+        vercel-args: '--prod'
+    
+    - name: Notificar despliegue exitoso
+      if: success()
+      run: echo "✅ Despliegue exitoso en Vercel"
+    
+    - name: Notificar despliegue fallido
+      if: failure()
+      run: echo "❌ Despliegue fallido"
+
+  notify:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [test, deploy]
+    
+    steps:
+    - name: Status del Pipeline
+      run: |
+        if [ "${{ needs.test.result }}" == "success" ]; then
+          echo "✅ Tests pasaron"
+        else
+          echo "❌ Tests fallaron"
+        fi
