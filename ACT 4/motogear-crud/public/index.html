@@ -1,18 +1,4 @@
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-
-const app = express();
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Servir archivos estáticos de la carpeta public
-const publicPath = path.join(__dirname, '../public');
-app.use(express.static(publicPath));
-
-// HTML de login embebido como fallback
-const HTML = `<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -153,23 +139,4 @@ const HTML = `<!DOCTYPE html>
         });
     </script>
 </body>
-</html>`;
-
-// Ruta raíz
-app.get('/', (req, res) => {
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(HTML);
-});
-
-// Health check
-app.get('/health', (req, res) => {
-    res.json({ status: 'OK', timestamp: new Date().toISOString() });
-});
-
-// Catch-all para servir HTML en cualquier ruta
-app.use((req, res) => {
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(HTML);
-});
-
-module.exports = app;
+</html>
