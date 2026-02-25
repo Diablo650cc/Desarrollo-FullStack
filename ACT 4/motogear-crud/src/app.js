@@ -1,8 +1,7 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
-const authRoutes = require('./routes/authRoutes');
-const productRoutes = require('./routes/productRoutes');
 
 const app = express();
 
@@ -12,7 +11,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Directorio público para archivos estáticos (login HTML, etc.)
-app.use(express.static(path.join(__dirname, '../public')));
+const publicPath = path.join(__dirname, '../public');
+app.use(express.static(publicPath));
 
 // Rutas API desactivadas - MongoDB no está conectado
 // app.use('/api/auth', authRoutes);
@@ -20,7 +20,14 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // Ruta de prueba
 app.get('/', (req, res) => {
-    res.sendFile(require('path').join(__dirname, '../public/login.html'));
+    const filePath = path.join(__dirname, '../public/login.html');
+    try {
+        const html = fs.readFileSync(filePath, 'utf8');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(html);
+    } catch (err) {
+        res.status(500).json({ message: 'Error cargando HTML', error: err.message });
+    }
 });
 
 // Health Check
@@ -34,9 +41,16 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Manejo de rutas no encontradas
+// Manejo de rutas no encontradas - servir login.html para todas las rutas
 app.use((req, res) => {
-    res.status(404).json({ message: 'Ruta no encontrada' });
+    const filePath = path.join(__dirname, '../public/login.html');
+    try {
+        const html = fs.readFileSync(filePath, 'utf8');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(html);
+    } catch (err) {
+        res.status(404).json({ message: 'Ruta no encontrada' });
+    }
 });
 
 // Manejo de errores global
