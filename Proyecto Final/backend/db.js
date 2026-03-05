@@ -8,6 +8,15 @@ const DB_NAME = process.env.DB_NAME || 'proyecto_api';
 
 let pool;
 
+async function ensureColumnExists(tableName, columnName, columnDefinitionSql) {
+    const [columns] = await pool.query(`SHOW COLUMNS FROM \`${tableName}\` LIKE ?`, [columnName]);
+    if (columns.length === 0) {
+        await pool.query(
+            `ALTER TABLE \`${tableName}\` ADD COLUMN ${columnDefinitionSql}`
+        );
+    }
+}
+
 async function initDatabase() {
     const adminPool = mysql.createPool({
         host: DB_HOST,
@@ -59,12 +68,16 @@ async function initDatabase() {
         )
     `);
 
-    // Compatibilidad con esquemas previos ya creados sin estas columnas.
-    await pool.query(
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('admin','user') NOT NULL DEFAULT 'user'"
+    // Compatibilidad con esquemas previos en versiones MySQL sin "ADD COLUMN IF NOT EXISTS".
+    await ensureColumnExists(
+        'users',
+        'role',
+        "role ENUM('admin','user') NOT NULL DEFAULT 'user'"
     );
-    await pool.query(
-        "ALTER TABLE products ADD COLUMN IF NOT EXISTS status ENUM('active','inactive') NOT NULL DEFAULT 'active'"
+    await ensureColumnExists(
+        'products',
+        'status',
+        "status ENUM('active','inactive') NOT NULL DEFAULT 'active'"
     );
 
     // Seeder minimo: asegurar cuenta admin para pruebas/manual QA.

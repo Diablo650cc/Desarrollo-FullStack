@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { Observable, tap, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { AuthResponse } from '../models/auth.model';
 
 interface JwtPayload {
@@ -14,6 +15,7 @@ interface JwtPayload {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly apiUrl = '/api/auth';
+  private readonly apiFallbackBaseUrl = 'http://localhost:5000';
   private readonly tokenKey = 'authToken';
 
   constructor(private readonly http: HttpClient) {}
@@ -21,7 +23,20 @@ export class AuthService {
   login(email: string, password: string): Observable<AuthResponse> {
     return this.http
       .post<AuthResponse>(`${this.apiUrl}/login`, { email, password })
-      .pipe(tap((response) => this.setToken(response.token)));
+      .pipe(
+        catchError((error) => {
+          // Fallback para entornos donde no esta activo el proxy de Angular.
+          if (error?.status === 0 || error?.status === 404) {
+            return this.http.post<AuthResponse>(
+              `${this.apiFallbackBaseUrl}${this.apiUrl}/login`,
+              { email, password }
+            );
+          }
+
+          return throwError(() => error);
+        }),
+        tap((response) => this.setToken(response.token))
+      );
   }
 
   register(email: string, password: string, role: 'admin' | 'user' = 'user'): Observable<AuthResponse> {
@@ -29,7 +44,22 @@ export class AuthService {
       email,
       password,
       role
-    });
+    }).pipe(
+      catchError((error) => {
+        if (error?.status === 0 || error?.status === 404) {
+          return this.http.post<AuthResponse>(
+            `${this.apiFallbackBaseUrl}${this.apiUrl}/register`,
+            {
+              email,
+              password,
+              role
+            }
+          );
+        }
+
+        return throwError(() => error);
+      })
+    );
   }
 
   logout(): void {
