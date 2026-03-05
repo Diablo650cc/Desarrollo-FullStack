@@ -1,0 +1,59 @@
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-md-5">
+      <div class="card shadow">
+        <div class="card-body p-5">
+          <h1 class="card-title text-center mb-4">Login</h1>
+
+          <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ error }}
+            <button type="button" class="btn-close" (click)="error = ''"></button>
+          </div>
+
+          <form [formGroup]="form" (ngSubmit)="submit()">
+            <div class="mb-3">
+              <label for="email" class="form-label">Email</label>
+              <input
+                type="email"
+                class="form-control"
+                id="email"
+                formControlName="email"
+                placeholder="correo@ejemplo.com">
+              <div *ngIf="form.get('email')?.invalid && form.get('email')?.touched" class="form-text text-danger">
+                Email válido requerido
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="password" class="form-label">Contraseña</label>
+              <input
+                type="password"
+                class="form-control"
+                id="password"
+                formControlName="password"
+                placeholder="Ingresa tu contraseña">
+              <div *ngIf="form.get('password')?.invalid && form.get('password')?.touched" class="form-text text-danger">
+                Contraseña requerida (mínimo 6 caracteres)
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              class="btn btn-primary w-100 mb-3"
+              [disabled]="form.invalid || loading">
+              <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
+              {{ loading ? 'Iniciando sesión...' : 'Ingresar' }}
+            </button>
+          </form>
+
+          <hr>
+
+          <p class="text-center mb-0">
+            ¿No tienes cuenta?
+            <a routerLink="/registro" class="text-decoration-none">Regístrate aquí</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

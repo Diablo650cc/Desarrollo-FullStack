@@ -180,21 +180,19 @@ async function cargarUsuarios() {
       throw new Error(`Error HTTP ${res.status}: ${res.statusText}`);
     }
 
-    const usuarios = await res.json();
-    console.log(' Usuarios recibidos del servidor:', usuarios);
-    
+    const respuesta = await res.json();
+    console.log(' Usuarios recibidos del servidor:', respuesta);
+    const usuarios = respuesta.data;
     if (!Array.isArray(usuarios)) {
-      console.log('️ La respuesta no es un array:', usuarios);
+      console.log('️ La respuesta no es un array:', respuesta);
       listaUsuarios.innerHTML = '<li>Error: Formato de datos incorrecto</li>';
       return;
     }
-    
     if (usuarios.length === 0) {
       console.log('ℹ️ No hay usuarios registrados');
       listaUsuarios.innerHTML = '<li>No hay usuarios registrados</li>';
       return;
     }
-
     console.log(` Mostrando ${usuarios.length} usuario(s)`);
     listaUsuarios.innerHTML = '';
     

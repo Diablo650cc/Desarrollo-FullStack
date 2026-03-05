@@ -1,0 +1,134 @@
+.admin-page {
+  min-height: 100vh;
+  padding: 1.2rem;
+  color: #edf3fa;
+  background:
+    radial-gradient(circle at 85% -10%, #5a7a2a 0, transparent 28%),
+    radial-gradient(circle at -10% 110%, #20485e 0, transparent 30%),
+    #151b1d;
+}
+
+.header {
+  max-width: 1100px;
+  margin: 0 auto 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #6ea349;
+  padding-bottom: 0.8rem;
+}
+
+.header h1 {
+  margin: 0;
+  color: #b8e67a;
+}
+
+.header button {
+  border: none;
+  border-radius: 10px;
+  padding: 0.58rem 0.95rem;
+  background: #4a7e2d;
+  color: #fff;
+  cursor: pointer;
+}
+
+.card {
+  max-width: 1100px;
+  margin: 0 auto 1rem;
+  background: rgba(21, 29, 32, 0.94);
+  border: 1px solid rgba(145, 212, 108, 0.25);
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+.placeholder {
+  color: #a8b6b8;
+}
+
+.message {
+  margin: 0 0 0.8rem;
+  padding: 0.6rem;
+  border-radius: 10px;
+  background: #1a5f38;
+  color: #9ff3bf;
+}
+
+.message.error {
+  background: #662525;
+  color: #f6bbbb;
+}
+
+.table-wrap {
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 700px;
+}
+
+th,
+td {
+  padding: 0.65rem;
+  border-bottom: 1px solid #2f4346;
+  text-align: left;
+}
+
+th {
+  color: #c5f08a;
+}
+
+.actions {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.small {
+  border: none;
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+  background: #4f8ab1;
+  color: #fff;
+  cursor: pointer;
+}
+
+.small.danger {
+  background: #9f3b3b;
+}
+
+form {
+  display: grid;
+  gap: 0.65rem;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+input {
+  border: 1px solid #49655f;
+  background: #151f21;
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.6rem 0.72rem;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.edit-actions button {
+  border: none;
+  border-radius: 10px;
+  padding: 0.58rem 0.9rem;
+  background: #4a7e2d;
+  color: #fff;
+  cursor: pointer;
+}
+
+.edit-actions .alt {
+  background: #5b6769;
+}

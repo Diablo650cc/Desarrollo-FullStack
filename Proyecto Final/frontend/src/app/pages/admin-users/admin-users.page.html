@@ -1,0 +1,71 @@
+<main class="admin-page">
+  <header class="header">
+    <h1>Administracion de Usuarios</h1>
+    <button type="button" (click)="goBack()">Volver a productos</button>
+  </header>
+
+  <section class="card">
+    <p *ngIf="message" class="message" [class.error]="messageType === 'error'">
+      {{ message }}
+    </p>
+
+    <p *ngIf="loading && users.length === 0" class="placeholder">
+      Cargando usuarios...
+    </p>
+
+    <p *ngIf="!loading && loadError && users.length === 0" class="placeholder">
+      No se pudieron cargar usuarios. Revisa que el backend este levantado en puerto 5000.
+    </p>
+
+    <p *ngIf="!loading && !loadError && users.length === 0" class="placeholder">
+      sin registros
+    </p>
+
+    <div class="table-wrap" *ngIf="users.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Email</th>
+            <th>Creado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let user of users; trackBy: trackById">
+            <td>{{ user.id }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+            <td class="actions">
+              <button type="button" class="small" (click)="startEdit(user)">Editar</button>
+              <button type="button" class="small danger" (click)="deleteUser(user)">
+                Eliminar
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" *ngIf="editingUserId">
+    <h2>Editar usuario</h2>
+
+    <form [formGroup]="form" (ngSubmit)="saveEdit()">
+      <label>
+        Email
+        <input type="email" formControlName="email" />
+      </label>
+
+      <label>
+        Nueva password (opcional)
+        <input type="password" formControlName="password" />
+      </label>
+
+      <div class="edit-actions">
+        <button type="submit">Guardar cambios</button>
+        <button type="button" class="alt" (click)="cancelEdit()">Cancelar</button>
+      </div>
+    </form>
+  </section>
+</main>

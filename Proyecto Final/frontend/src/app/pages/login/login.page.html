@@ -1,0 +1,26 @@
+<main class="auth-page">
+  <section class="auth-card">
+    <h1>MOTO GEAR</h1>
+    <h2>Iniciar sesion</h2>
+
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <label>
+        Correo electronico
+        <input type="email" formControlName="email" placeholder="correo@ejemplo.com" />
+      </label>
+
+      <label>
+        Contrasena
+        <input type="password" formControlName="password" placeholder="Tu contrasena" />
+      </label>
+
+      <button type="submit" [disabled]="loading">
+        {{ loading ? 'Entrando...' : 'Entrar' }}
+      </button>
+
+      <a routerLink="/register">Registrarse</a>
+    </form>
+
+    <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+  </section>
+</main>
