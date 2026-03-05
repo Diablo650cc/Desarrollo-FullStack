@@ -1,29 +1,6 @@
 require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
 const { initDatabase } = require('./db');
-
-const app = express();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// Rutas de API
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/products', require('./routes/products'));
-app.use('/api/users', require('./routes/users'));
-
-// Manejo de errores
-app.use((err, req, res, next) => {
-    console.error(err);
-    res.status(500).json({ message: 'Error interno del servidor' });
-});
-
-// 404
-app.use((req, res) => {
-    res.status(404).json({ message: 'Ruta no encontrada' });
-});
+const app = require('./app');
 
 const PORT = process.env.PORT || 5000;
 

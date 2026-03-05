@@ -6,6 +6,7 @@ import { AuthResponse } from '../models/auth.model';
 interface JwtPayload {
   id: string;
   email: string;
+  role: 'admin' | 'user';
   iat: number;
   exp: number;
 }
@@ -23,10 +24,11 @@ export class AuthService {
       .pipe(tap((response) => this.setToken(response.token)));
   }
 
-  register(email: string, password: string): Observable<AuthResponse> {
+  register(email: string, password: string, role: 'admin' | 'user' = 'user'): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.apiUrl}/register`, {
       email,
-      password
+      password,
+      role
     });
   }
 
@@ -52,6 +54,14 @@ export class AuthService {
 
   getUserEmail(): string {
     return this.getPayload()?.email ?? 'Usuario';
+  }
+
+  getUserRole(): 'admin' | 'user' {
+    return this.getPayload()?.role ?? 'user';
+  }
+
+  isAdmin(): boolean {
+    return this.getUserRole() === 'admin';
   }
 
   private getPayload(): JwtPayload | null {

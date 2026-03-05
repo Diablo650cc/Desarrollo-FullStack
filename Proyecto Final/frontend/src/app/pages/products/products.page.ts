@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { finalize, retry, timeout } from 'rxjs/operators';
 import { Product, ProductPayload } from '../../models/product.model';
@@ -9,11 +9,11 @@ import { ProductsService } from '../../services/products.service';
 
 @Component({
   selector: 'app-products-page',
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule],
   templateUrl: './products.page.html',
   styleUrl: './products.page.css'
 })
-export class ProductsPage implements OnInit {
+export class ProductsPage implements OnInit, OnDestroy {
   private readonly productsCacheKey = 'productsCache';
   private readonly autoRefreshMs = 5000;
   private refreshIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -21,9 +21,17 @@ export class ProductsPage implements OnInit {
 
   products: Product[] = [];
   userEmail = '';
+  userRole: 'admin' | 'user' = 'user';
   currentProductId: string | null = null;
   loading = false;
   loadError = false;
+  currentPage = 1;
+  pageSize = 5;
+  totalPages = 1;
+  totalItems = 0;
+  search = '';
+  categoryFilter = '';
+  statusFilter: '' | 'active' | 'inactive' = '';
   message = '';
   messageType: 'success' | 'error' = 'success';
 
@@ -36,6 +44,8 @@ export class ProductsPage implements OnInit {
     'Electronica',
     'Otro'
   ];
+
+  readonly statuses = ['active', 'inactive'] as const;
 
   form;
 
@@ -52,7 +62,8 @@ export class ProductsPage implements OnInit {
       precio: [0, [Validators.required, Validators.min(0)]],
       talla: [''],
       color: [''],
-      stock: [0, [Validators.required, Validators.min(0)]]
+      stock: [0, [Validators.required, Validators.min(0)]],
+      status: ['active', [Validators.required]]
     });
   }
 
@@ -63,6 +74,7 @@ export class ProductsPage implements OnInit {
     }
 
     this.userEmail = this.authService.getUserEmail();
+    this.userRole = this.authService.getUserRole();
     this.hydrateProductsFromCache();
     this.loadProducts();
     this.startAutoRefresh();
@@ -83,7 +95,13 @@ export class ProductsPage implements OnInit {
     }
     this.loadError = false;
     this.productsService
-      .getProducts()
+      .getProducts({
+        page: this.currentPage,
+        limit: this.pageSize,
+        categoria: this.categoryFilter || undefined,
+        status: this.statusFilter || undefined,
+        search: this.search || undefined
+      })
       .pipe(
         timeout(20000),
         retry({ count: 2, delay: 800 }),
@@ -95,10 +113,13 @@ export class ProductsPage implements OnInit {
         })
       )
       .subscribe({
-        next: (products) => {
-          this.products = products;
+        next: (response) => {
+          this.products = response.data;
+          this.currentPage = response.pagination.page;
+          this.totalPages = response.pagination.totalPages;
+          this.totalItems = response.pagination.total;
           this.loadError = false;
-          this.persistProductsCache(products);
+          this.persistProductsCache(response.data);
         },
         error: (error) => {
           this.loadError = this.products.length === 0;
@@ -153,7 +174,8 @@ export class ProductsPage implements OnInit {
       precio: product.precio,
       talla: product.talla ?? '',
       color: product.color ?? '',
-      stock: product.stock
+      stock: product.stock,
+      status: product.status
     });
     this.showMessage('Editando producto', 'success');
   }
@@ -183,7 +205,60 @@ export class ProductsPage implements OnInit {
   }
 
   goToAdministration(): void {
+    if (!this.isAdmin()) {
+      this.showMessage('Solo el rol admin puede acceder a administracion', 'error');
+      return;
+    }
     this.router.navigate(['/admin/users']);
+  }
+
+  isAdmin(): boolean {
+    return this.userRole === 'admin';
+  }
+
+  applyFilters(): void {
+    this.currentPage = 1;
+    this.loadProducts();
+  }
+
+  clearFilters(): void {
+    this.search = '';
+    this.categoryFilter = '';
+    this.statusFilter = '';
+    this.currentPage = 1;
+    this.loadProducts();
+  }
+
+  goToPage(page: number): void {
+    if (page < 1 || page > this.totalPages || page === this.currentPage) {
+      return;
+    }
+
+    this.currentPage = page;
+    this.loadProducts();
+  }
+
+  toggleStatus(product: Product): void {
+    const nextStatus = product.status === 'active' ? 'inactive' : 'active';
+
+    this.productsService
+      .updateProduct(product._id, {
+        nombre: product.nombre,
+        descripcion: product.descripcion ?? '',
+        categoria: product.categoria,
+        precio: product.precio,
+        talla: product.talla ?? '',
+        color: product.color ?? '',
+        stock: product.stock,
+        status: nextStatus
+      })
+      .subscribe({
+        next: () => {
+          this.showMessage('Estado actualizado', 'success');
+          this.loadProducts(false);
+        },
+        error: () => this.showMessage('No se pudo actualizar estado', 'error')
+      });
   }
 
   resetForm(): void {
@@ -195,7 +270,8 @@ export class ProductsPage implements OnInit {
       precio: 0,
       talla: '',
       color: '',
-      stock: 0
+      stock: 0,
+      status: 'active'
     });
   }
 

@@ -1,8 +1,13 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
-import { Product, ProductPayload } from '../models/product.model';
+import {
+  Product,
+  ProductPayload,
+  ProductQueryParams,
+  ProductsListResponse
+} from '../models/product.model';
 import { AuthService } from './auth.service';
 
 type ProductsApiResponse =
@@ -10,6 +15,19 @@ type ProductsApiResponse =
   | {
       products?: Product[];
       data?: Product[];
+      pagination?: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+      };
+      filters?: {
+        categoria: string | null;
+        status: string | null;
+        search: string | null;
+        minPrice: string | null;
+        maxPrice: string | null;
+      };
       [key: string]: unknown;
     };
 
@@ -22,16 +40,17 @@ export class ProductsService {
     private readonly authService: AuthService
   ) {}
 
-  getProducts(): Observable<Product[]> {
+  getProducts(query: ProductQueryParams = {}): Observable<ProductsListResponse> {
     const headers = this.getHeaders();
+    const params = this.buildQueryParams(query);
 
-    return this.http.get<ProductsApiResponse>(this.apiUrl, { headers }).pipe(
+    return this.http.get<ProductsApiResponse>(this.apiUrl, { headers, params }).pipe(
       map((response) => this.normalizeProductsResponse(response)),
       catchError((error) => {
         // Fallback para cuando el proxy de Angular no enruta /api.
         if (error?.status === 0 || error?.status === 404) {
           return this.http
-            .get<ProductsApiResponse>(`http://localhost:5000${this.apiUrl}`, { headers })
+            .get<ProductsApiResponse>(`http://localhost:5000${this.apiUrl}`, { headers, params })
             .pipe(map((response) => this.normalizeProductsResponse(response)));
         }
 
@@ -71,17 +90,49 @@ export class ProductsService {
     });
   }
 
-  private normalizeProductsResponse(response: ProductsApiResponse): Product[] {
+  private normalizeProductsResponse(response: ProductsApiResponse): ProductsListResponse {
+    const paginationFallback = {
+      page: 1,
+      limit: 10,
+      total: 0,
+      totalPages: 1
+    };
+    const filtersFallback = {
+      categoria: null,
+      status: null,
+      search: null,
+      minPrice: null,
+      maxPrice: null
+    };
+
     if (Array.isArray(response)) {
-      return response.map((product) => this.normalizeProduct(product));
+      return {
+        data: response.map((product) => this.normalizeProduct(product)),
+        pagination: {
+          ...paginationFallback,
+          total: response.length
+        },
+        filters: filtersFallback
+      };
     }
 
     const wrappedProducts = response?.products ?? response?.data;
     if (Array.isArray(wrappedProducts)) {
-      return wrappedProducts.map((product) => this.normalizeProduct(product));
+      return {
+        data: wrappedProducts.map((product) => this.normalizeProduct(product)),
+        pagination: (response.pagination as ProductsListResponse['pagination']) ?? {
+          ...paginationFallback,
+          total: wrappedProducts.length
+        },
+        filters: (response.filters as ProductsListResponse['filters']) ?? filtersFallback
+      };
     }
 
-    return [];
+    return {
+      data: [],
+      pagination: paginationFallback,
+      filters: filtersFallback
+    };
   }
 
   private normalizeProduct(product: Partial<Product>): Product {
@@ -94,9 +145,22 @@ export class ProductsService {
       talla: product.talla ?? '',
       color: product.color ?? '',
       stock: Number(product.stock ?? 0),
+      status: (product.status as 'active' | 'inactive') ?? 'active',
       usuario: String(product.usuario ?? ''),
       createdAt: product.createdAt ?? '',
       updatedAt: product.updatedAt ?? ''
     };
+  }
+
+  private buildQueryParams(query: ProductQueryParams): HttpParams {
+    let params = new HttpParams();
+
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        params = params.set(key, String(value));
+      }
+    });
+
+    return params;
   }
 }

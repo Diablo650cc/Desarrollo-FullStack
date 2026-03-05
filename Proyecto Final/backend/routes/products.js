@@ -2,6 +2,14 @@ const express = require('express');
 const router = express.Router();
 const { authMiddleware } = require('../middleware/auth');
 const { getPool } = require('../db');
+const { AppError } = require('../middleware/error');
+const {
+    validate,
+    validatePaginationQuery,
+    validateProductPayload,
+    validateProductUpdatePayload,
+    validateStatusPatch
+} = require('../middleware/validate');
 
 function mapProduct(row) {
     return {
@@ -13,31 +21,105 @@ function mapProduct(row) {
         talla: row.talla || '',
         color: row.color || '',
         stock: Number(row.stock),
+        status: row.status,
         usuario: String(row.usuario_id),
         createdAt: row.created_at,
         updatedAt: row.updated_at
     };
 }
 
+function buildProductsWhereClause(query, user) {
+    const conditions = [];
+    const params = [];
+
+    if (user.role !== 'admin') {
+        conditions.push('usuario_id = ?');
+        params.push(user.id);
+    }
+
+    if (query.categoria) {
+        conditions.push('categoria = ?');
+        params.push(query.categoria);
+    }
+
+    if (query.status) {
+        conditions.push('status = ?');
+        params.push(query.status);
+    }
+
+    if (query.search) {
+        conditions.push('(nombre LIKE ? OR descripcion LIKE ?)');
+        params.push(`%${query.search}%`, `%${query.search}%`);
+    }
+
+    if (query.minPrice !== undefined) {
+        conditions.push('precio >= ?');
+        params.push(Number(query.minPrice));
+    }
+
+    if (query.maxPrice !== undefined) {
+        conditions.push('precio <= ?');
+        params.push(Number(query.maxPrice));
+    }
+
+    if (conditions.length === 0) {
+        return { whereClause: '', params };
+    }
+
+    return { whereClause: `WHERE ${conditions.join(' AND ')}`, params };
+}
+
+router.use(authMiddleware);
+
 // @route   GET /api/products
 // @desc    Obtener todos los productos del usuario
 // @access  Private
-router.get('/', async (req, res) => {
+router.get('/', validate(validatePaginationQuery), async (req, res, next) => {
     try {
         const pool = getPool();
-        const [rows] = await pool.query('SELECT * FROM products ORDER BY created_at DESC');
+        const page = Number(req.query.page || 1);
+        const limit = Number(req.query.limit || 10);
+        const offset = (page - 1) * limit;
 
-        res.json(rows.map(mapProduct));
+        const { whereClause, params } = buildProductsWhereClause(req.query, req.user);
+
+        const [countRows] = await pool.query(
+            `SELECT COUNT(*) AS total FROM products ${whereClause}`,
+            params
+        );
+
+        const [rows] = await pool.query(
+            `SELECT * FROM products ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+            [...params, limit, offset]
+        );
+
+        const total = Number(countRows[0]?.total || 0);
+
+        res.json({
+            data: rows.map(mapProduct),
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit) || 1
+            },
+            filters: {
+                categoria: req.query.categoria || null,
+                status: req.query.status || null,
+                search: req.query.search || null,
+                minPrice: req.query.minPrice || null,
+                maxPrice: req.query.maxPrice || null
+            }
+        });
     } catch (err) {
-        console.error('Error obteniendo productos:', err);
-        res.status(500).json({ message: 'Error obteniendo productos' });
+        next(err);
     }
 });
 
 // @route   GET /api/products/:id
 // @desc    Obtener un producto específico
 // @access  Private
-router.get('/:id', authMiddleware, async (req, res) => {
+router.get('/:id', async (req, res, next) => {
     try {
         const pool = getPool();
         const [rows] = await pool.query('SELECT * FROM products WHERE id = ? LIMIT 1', [
@@ -45,39 +127,32 @@ router.get('/:id', authMiddleware, async (req, res) => {
         ]);
 
         if (rows.length === 0) {
-            return res.status(404).json({ message: 'Producto no encontrado' });
+            return next(new AppError('Producto no encontrado', 404));
         }
 
         const product = rows[0];
 
-        // Verificar que el producto pertenece al usuario
-        if (String(product.usuario_id) !== String(req.userId)) {
-            return res.status(403).json({ message: 'No tienes permiso para acceder a este producto' });
+        if (req.user.role !== 'admin' && String(product.usuario_id) !== String(req.user.id)) {
+            return next(new AppError('No tienes permiso para acceder a este producto', 403));
         }
 
         res.json(mapProduct(product));
     } catch (err) {
-        console.error('Error obteniendo producto:', err);
-        res.status(500).json({ message: 'Error obteniendo producto' });
+        next(err);
     }
 });
 
 // @route   POST /api/products
 // @desc    Crear nuevo producto
 // @access  Private
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', validate(validateProductPayload), async (req, res, next) => {
     try {
-        const { nombre, descripcion, categoria, precio, talla, color, stock } = req.body;
+        const { nombre, descripcion, categoria, precio, talla, color, stock, status } = req.body;
         const pool = getPool();
 
-        // Validar entrada
-        if (!nombre || !categoria || !precio) {
-            return res.status(400).json({ message: 'Nombre, categoría y precio son requeridos' });
-        }
-
         const [insertResult] = await pool.query(
-            `INSERT INTO products (nombre, descripcion, categoria, precio, talla, color, stock, usuario_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO products (nombre, descripcion, categoria, precio, talla, color, stock, status, usuario_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 nombre,
                 descripcion || '',
@@ -86,7 +161,8 @@ router.post('/', authMiddleware, async (req, res) => {
                 talla || '',
                 color || '',
                 stock || 0,
-                req.userId
+                status || 'active',
+                req.user.id
             ]
         );
 
@@ -96,15 +172,14 @@ router.post('/', authMiddleware, async (req, res) => {
 
         res.status(201).json(mapProduct(rows[0]));
     } catch (err) {
-        console.error('Error creando producto:', err);
-        res.status(500).json({ message: 'Error creando producto' });
+        next(err);
     }
 });
 
 // @route   PUT /api/products/:id
 // @desc    Actualizar producto
 // @access  Private
-router.put('/:id', authMiddleware, async (req, res) => {
+router.put('/:id', validate(validateProductUpdatePayload), async (req, res, next) => {
     try {
         const pool = getPool();
         const [existingRows] = await pool.query('SELECT * FROM products WHERE id = ? LIMIT 1', [
@@ -112,19 +187,19 @@ router.put('/:id', authMiddleware, async (req, res) => {
         ]);
 
         if (existingRows.length === 0) {
-            return res.status(404).json({ message: 'Producto no encontrado' });
+            return next(new AppError('Producto no encontrado', 404));
         }
 
         const existingProduct = existingRows[0];
-        if (String(existingProduct.usuario_id) !== String(req.userId)) {
-            return res.status(403).json({ message: 'No tienes permiso para editar este producto' });
+        if (req.user.role !== 'admin' && String(existingProduct.usuario_id) !== String(req.user.id)) {
+            return next(new AppError('No tienes permiso para editar este producto', 403));
         }
 
-        const { nombre, descripcion, categoria, precio, talla, color, stock } = req.body;
+        const { nombre, descripcion, categoria, precio, talla, color, stock, status } = req.body;
 
         await pool.query(
             `UPDATE products
-             SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, talla = ?, color = ?, stock = ?
+             SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, talla = ?, color = ?, stock = ?, status = ?
              WHERE id = ?`,
             [
                 nombre ?? existingProduct.nombre,
@@ -134,6 +209,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
                 talla ?? existingProduct.talla,
                 color ?? existingProduct.color,
                 stock ?? existingProduct.stock,
+                status ?? existingProduct.status,
                 req.params.id
             ]
         );
@@ -144,15 +220,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
         res.json(mapProduct(updatedRows[0]));
     } catch (err) {
-        console.error('Error actualizando producto:', err);
-        res.status(500).json({ message: 'Error actualizando producto' });
+        next(err);
     }
 });
 
 // @route   DELETE /api/products/:id
 // @desc    Eliminar producto
 // @access  Private
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', async (req, res, next) => {
     try {
         const pool = getPool();
         const [rows] = await pool.query('SELECT * FROM products WHERE id = ? LIMIT 1', [
@@ -160,22 +235,48 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         ]);
 
         if (rows.length === 0) {
-            return res.status(404).json({ message: 'Producto no encontrado' });
+            return next(new AppError('Producto no encontrado', 404));
         }
 
         const product = rows[0];
 
-        // Verificar que el producto pertenece al usuario
-        if (String(product.usuario_id) !== String(req.userId)) {
-            return res.status(403).json({ message: 'No tienes permiso para eliminar este producto' });
+        if (req.user.role !== 'admin' && String(product.usuario_id) !== String(req.user.id)) {
+            return next(new AppError('No tienes permiso para eliminar este producto', 403));
         }
 
         await pool.query('DELETE FROM products WHERE id = ?', [req.params.id]);
-        
+
         res.json({ message: 'Producto eliminado correctamente' });
     } catch (err) {
-        console.error('Error eliminando producto:', err);
-        res.status(500).json({ message: 'Error eliminando producto' });
+        next(err);
+    }
+});
+
+router.patch('/:id/status', validate(validateStatusPatch), async (req, res, next) => {
+    try {
+        const pool = getPool();
+        const [rows] = await pool.query('SELECT * FROM products WHERE id = ? LIMIT 1', [
+            req.params.id
+        ]);
+
+        if (rows.length === 0) {
+            return next(new AppError('Producto no encontrado', 404));
+        }
+
+        const product = rows[0];
+        if (req.user.role !== 'admin' && String(product.usuario_id) !== String(req.user.id)) {
+            return next(new AppError('No tienes permiso para cambiar estado de este producto', 403));
+        }
+
+        await pool.query('UPDATE products SET status = ? WHERE id = ?', [req.body.status, req.params.id]);
+
+        const [updatedRows] = await pool.query('SELECT * FROM products WHERE id = ? LIMIT 1', [
+            req.params.id
+        ]);
+
+        res.json(mapProduct(updatedRows[0]));
+    } catch (err) {
+        next(err);
     }
 });
 

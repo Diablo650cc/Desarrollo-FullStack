@@ -2,9 +2,12 @@
   <header class="header">
     <h1>Gestion de Productos</h1>
     <div class="user-box">
-      <p>Usuario: <strong>{{ userEmail }}</strong></p>
+      <p>
+        Usuario: <strong>{{ userEmail }}</strong>
+        <span class="badge">{{ userRole }}</span>
+      </p>
       <div class="user-actions">
-        <button type="button" class="admin-btn" (click)="goToAdministration()">
+        <button *ngIf="isAdmin()" type="button" class="admin-btn" (click)="goToAdministration()">
           Administracion
         </button>
         <button type="button" (click)="logout()">Cerrar sesion</button>
@@ -60,6 +63,14 @@
           <input type="number" formControlName="stock" min="0" />
         </label>
 
+        <label>
+          Estado
+          <select formControlName="status">
+            <option value="active">active</option>
+            <option value="inactive">inactive</option>
+          </select>
+        </label>
+
         <div class="actions">
           <button type="submit">
             {{ currentProductId ? 'Actualizar' : 'Guardar' }}
@@ -71,6 +82,26 @@
 
     <article class="card">
       <h2>Productos</h2>
+
+      <div class="filters">
+        <input
+          type="text"
+          [(ngModel)]="search"
+          [ngModelOptions]="{ standalone: true }"
+          placeholder="Buscar por nombre o descripcion"
+        />
+        <select [(ngModel)]="categoryFilter" [ngModelOptions]="{ standalone: true }">
+          <option value="">Todas las categorias</option>
+          <option *ngFor="let category of categories" [value]="category">{{ category }}</option>
+        </select>
+        <select [(ngModel)]="statusFilter" [ngModelOptions]="{ standalone: true }">
+          <option value="">Todos los estados</option>
+          <option value="active">active</option>
+          <option value="inactive">inactive</option>
+        </select>
+        <button type="button" class="small" (click)="applyFilters()">Filtrar</button>
+        <button type="button" class="small alt" (click)="clearFilters()">Limpiar</button>
+      </div>
 
       <p *ngIf="loading && products.length === 0" class="placeholder">
         Cargando productos...
@@ -94,6 +125,7 @@
               <th>Talla</th>
               <th>Color</th>
               <th>Stock</th>
+              <th>Estado</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -105,9 +137,17 @@
               <td>{{ product.talla || '-' }}</td>
               <td>{{ product.color || '-' }}</td>
               <td>{{ product.stock }}</td>
+              <td>
+                <span class="badge" [class.badge-off]="product.status === 'inactive'">
+                  {{ product.status }}
+                </span>
+              </td>
               <td class="row-actions">
                 <button type="button" class="small" (click)="editProduct(product)">
                   Editar
+                </button>
+                <button type="button" class="small alt" (click)="toggleStatus(product)">
+                  Cambiar estado
                 </button>
                 <button
                   type="button"
@@ -120,6 +160,12 @@
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="pager" *ngIf="products.length > 0">
+        <button type="button" class="small" (click)="goToPage(currentPage - 1)">Anterior</button>
+        <span>Pagina {{ currentPage }} de {{ totalPages }} | Total: {{ totalItems }}</span>
+        <button type="button" class="small" (click)="goToPage(currentPage + 1)">Siguiente</button>
       </div>
     </article>
   </section>

@@ -13,7 +13,7 @@ import { UsersService } from '../../services/users.service';
   templateUrl: './admin-users.page.html',
   styleUrl: './admin-users.page.css'
 })
-export class AdminUsersPage implements OnInit {
+export class AdminUsersPage implements OnInit, OnDestroy {
   private readonly usersCacheKey = 'adminUsersCache';
   private readonly autoRefreshMs = 5000;
   private refreshIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -36,13 +36,19 @@ export class AdminUsersPage implements OnInit {
   ) {
     this.form = this.fb.group({
       email: ['', [Validators.required, Validators.email]],
-      password: ['']
+      password: [''],
+      role: ['user', [Validators.required]]
     });
   }
 
   ngOnInit(): void {
     if (!this.authService.isAuthenticated()) {
       this.router.navigate(['/login']);
+      return;
+    }
+
+    if (!this.authService.isAdmin()) {
+      this.router.navigate(['/products']);
       return;
     }
 
@@ -104,7 +110,8 @@ export class AdminUsersPage implements OnInit {
     this.editingUserId = user.id;
     this.form.reset({
       email: user.email,
-      password: ''
+      password: '',
+      role: user.role
     });
   }
 
@@ -112,7 +119,8 @@ export class AdminUsersPage implements OnInit {
     this.editingUserId = null;
     this.form.reset({
       email: '',
-      password: ''
+      password: '',
+      role: 'user'
     });
   }
 
@@ -122,9 +130,10 @@ export class AdminUsersPage implements OnInit {
       return;
     }
 
-    const { email, password } = this.form.getRawValue();
-    const payload: { email?: string; password?: string } = {
-      email: email ?? ''
+    const { email, password, role } = this.form.getRawValue();
+    const payload: { email?: string; password?: string; role?: 'admin' | 'user' } = {
+      email: email ?? '',
+      role: (role as 'admin' | 'user') ?? 'user'
     };
 
     if (password) {

@@ -27,6 +27,7 @@
           <tr>
             <th>ID</th>
             <th>Email</th>
+            <th>Rol</th>
             <th>Creado</th>
             <th>Acciones</th>
           </tr>
@@ -35,6 +36,7 @@
           <tr *ngFor="let user of users; trackBy: trackById">
             <td>{{ user.id }}</td>
             <td>{{ user.email }}</td>
+            <td>{{ user.role }}</td>
             <td>{{ user.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
             <td class="actions">
               <button type="button" class="small" (click)="startEdit(user)">Editar</button>
@@ -60,6 +62,14 @@
       <label>
         Nueva password (opcional)
         <input type="password" formControlName="password" />
+      </label>
+
+      <label>
+        Rol
+        <select formControlName="role">
+          <option value="user">user</option>
+          <option value="admin">admin</option>
+        </select>
       </label>
 
       <div class="edit-actions">

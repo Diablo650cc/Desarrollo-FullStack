@@ -1,60 +1,65 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, authorizeRoles } = require('../middleware/auth');
 const { getPool } = require('../db');
+const { AppError } = require('../middleware/error');
+const { validate, validateUserUpdate } = require('../middleware/validate');
 
-router.get('/', authMiddleware, async (req, res) => {
+router.use(authMiddleware);
+router.use(authorizeRoles('admin'));
+
+router.get('/', async (req, res, next) => {
     try {
         const pool = getPool();
-        let rows;
+        const page = Number(req.query.page || 1);
+        const limit = Number(req.query.limit || 20);
+        const offset = (page - 1) * limit;
 
-        try {
-            [rows] = await pool.query(
-                'SELECT id, email, created_at FROM users ORDER BY id ASC'
-            );
-        } catch (error) {
-            // Compatibilidad con esquemas legacy que no tienen created_at.
-            if (error?.code !== 'ER_BAD_FIELD_ERROR') {
-                throw error;
-            }
-
-            [rows] = await pool.query('SELECT id, email FROM users ORDER BY id ASC');
-        }
+        const [countRows] = await pool.query('SELECT COUNT(*) AS total FROM users');
+        const [rows] = await pool.query(
+            'SELECT id, email, role, created_at FROM users ORDER BY id ASC LIMIT ? OFFSET ?',
+            [limit, offset]
+        );
 
         const users = rows.map((row) => ({
             id: String(row.id),
             email: row.email,
+            role: row.role,
             createdAt: row.created_at || null
         }));
 
-        res.json(users);
+        res.json({
+            data: users,
+            pagination: {
+                page,
+                limit,
+                total: Number(countRows[0]?.total || 0),
+                totalPages: Math.ceil(Number(countRows[0]?.total || 0) / limit) || 1
+            }
+        });
     } catch (error) {
-        console.error('Error listando usuarios:', error);
-        res.status(500).json({ message: 'Error listando usuarios' });
+        next(error);
     }
 });
 
-router.put('/:id', authMiddleware, async (req, res) => {
+router.put('/:id', validate(validateUserUpdate), async (req, res, next) => {
     try {
-        const { email, password } = req.body;
+        const { email, password, role } = req.body;
         const userId = req.params.id;
         const pool = getPool();
 
-        if (!email && !password) {
-            return res.status(400).json({ message: 'Debes enviar email o password para actualizar' });
-        }
-
-        const [users] = await pool.query('SELECT id, email, password FROM users WHERE id = ? LIMIT 1', [
+        const [users] = await pool.query('SELECT id, email, password, role, created_at FROM users WHERE id = ? LIMIT 1', [
             userId
         ]);
 
         if (users.length === 0) {
-            return res.status(404).json({ message: 'Usuario no encontrado' });
+            return next(new AppError('Usuario no encontrado', 404));
         }
 
         const existingUser = users[0];
         const nextEmail = email ?? existingUser.email;
+        const nextRole = role ?? existingUser.role;
         let nextPassword = existingUser.password;
 
         if (email) {
@@ -63,7 +68,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
                 [email, userId]
             );
             if (duplicated.length > 0) {
-                return res.status(400).json({ message: 'El email ya está en uso por otro usuario' });
+                return next(new AppError('El email ya esta en uso por otro usuario', 400));
             }
         }
 
@@ -71,14 +76,15 @@ router.put('/:id', authMiddleware, async (req, res) => {
             nextPassword = await bcrypt.hash(password, 10);
         }
 
-        await pool.query('UPDATE users SET email = ?, password = ? WHERE id = ?', [
+        await pool.query('UPDATE users SET email = ?, password = ?, role = ? WHERE id = ?', [
             nextEmail,
             nextPassword,
+            nextRole,
             userId
         ]);
 
         const [updatedRows] = await pool.query(
-            'SELECT id, email, created_at FROM users WHERE id = ? LIMIT 1',
+            'SELECT id, email, role, created_at FROM users WHERE id = ? LIMIT 1',
             [userId]
         );
 
@@ -86,33 +92,32 @@ router.put('/:id', authMiddleware, async (req, res) => {
         res.json({
             id: String(updatedUser.id),
             email: updatedUser.email,
+            role: updatedUser.role,
             createdAt: updatedUser.created_at
         });
     } catch (error) {
-        console.error('Error actualizando usuario:', error);
-        res.status(500).json({ message: 'Error actualizando usuario' });
+        next(error);
     }
 });
 
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', async (req, res, next) => {
     try {
         const userId = req.params.id;
         const pool = getPool();
 
-        if (String(req.userId) === String(userId)) {
-            return res.status(400).json({ message: 'No puedes eliminar tu propio usuario en sesión' });
+        if (String(req.user.id) === String(userId)) {
+            return next(new AppError('No puedes eliminar tu propio usuario en sesion', 400));
         }
 
         const [users] = await pool.query('SELECT id FROM users WHERE id = ? LIMIT 1', [userId]);
         if (users.length === 0) {
-            return res.status(404).json({ message: 'Usuario no encontrado' });
+            return next(new AppError('Usuario no encontrado', 404));
         }
 
         await pool.query('DELETE FROM users WHERE id = ?', [userId]);
         res.json({ message: 'Usuario eliminado correctamente' });
     } catch (error) {
-        console.error('Error eliminando usuario:', error);
-        res.status(500).json({ message: 'Error eliminando usuario' });
+        next(error);
     }
 });
 

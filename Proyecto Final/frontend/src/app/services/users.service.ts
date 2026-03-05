@@ -10,6 +10,12 @@ type UsersApiResponse =
   | {
       users?: UserRecord[];
       data?: UserRecord[];
+      pagination?: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+      };
       [key: string]: unknown;
     };
 
@@ -76,6 +82,7 @@ export class UsersService {
     return {
       id: String(user.id ?? ''),
       email: user.email ?? '',
+      role: (user.role as 'admin' | 'user') ?? 'user',
       createdAt: user.createdAt ?? ''
     };
   }
